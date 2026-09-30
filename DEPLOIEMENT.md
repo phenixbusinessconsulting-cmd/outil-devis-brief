@@ -40,25 +40,32 @@ Il est relançable : aux passages suivants, il ne fait que mettre à jour.
 
    | Nom | Contenu |
    |---|---|
-   | `VPS_SSH_KEY` | la clé **privée** SSH du CI, la même que pour le CRM : contenu de `~/.ssh/id_ed25519_ci` sur le Mac |
+   | `VPS_SSH_KEY` | la clé **privée** SSH dédiée : contenu de `~/.ssh/id_ed25519_outil_devis` (voir ci-dessous) |
    | `VPS_KNOWN_HOSTS` | *(recommandé)* la sortie de `ssh-keyscan 72.62.25.236` |
    | `OUTIL_ADMIN_USERNAME` | identifiant du premier administrateur, par exemple `prenom.nom` |
    | `OUTIL_ADMIN_PASSWORD` | son mot de passe, 10 caractères minimum |
 
-   Depuis le Mac, pour copier les valeurs :
+   Créer la clé sur le Mac, l'autoriser sur le VPS, puis copier les valeurs :
 
    ```bash
-   pbcopy < ~/.ssh/id_ed25519_ci      # clé privée → presse-papier
-   ssh-keyscan 72.62.25.236 | pbcopy  # empreinte du serveur
+   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_outil_devis -N "" -C "github-actions-outil-devis"
+   cat ~/.ssh/id_ed25519_outil_devis.pub | ssh root@72.62.25.236 "cat >> ~/.ssh/authorized_keys"
+   ssh -i ~/.ssh/id_ed25519_outil_devis root@72.62.25.236 hostname   # doit afficher le nom du VPS
+   pbcopy < ~/.ssh/id_ed25519_outil_devis   # clé privée → presse-papier
+   ssh-keyscan 72.62.25.236 | pbcopy        # empreinte du serveur
    ```
+
+   Si le Mac n'a pas encore d'accès SSH au VPS, la deuxième commande échoue :
+   ajouter alors la ligne affichée par `cat ~/.ssh/id_ed25519_outil_devis.pub`
+   depuis hPanel → VPS → **Terminal** (navigateur), avec
+   `echo 'LA_LIGNE' >> ~/.ssh/authorized_keys`.
 
    La clé privée se colle **uniquement dans l'interface GitHub**, jamais
    dans une conversation ni dans un fichier.
 
-   La clé doit donner un shell root complet. Si elle a été bridée au seul
-   dossier du CRM (préfixe `command="rrsync …"` dans `authorized_keys`), le
-   déploiement échoue à l'étape « Vérifier la connexion ». Dans ce cas,
-   autorisez une clé dédiée à cet outil.
+   La clé doit donner un shell root complet (pas de préfixe
+   `command="rrsync …"` dans `authorized_keys`), sinon le déploiement échoue
+   à l'étape « Vérifier la connexion ».
 3. **Lancer** : GitHub → onglet **Actions → Déploiement → Run workflow**,
    ou simplement fusionner une pull request sur `main`.
 
