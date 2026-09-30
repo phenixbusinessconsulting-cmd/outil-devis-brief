@@ -129,7 +129,7 @@ function checkPassword(p) {
 router.post('/users', async (req, res) => {
   const b = req.body || {};
   const username = str(b.username, 60).toLowerCase();
-  if (!/^[a-z0-9._-]{3,}$/.test(username)) throw badRequest('Identifiant : 3 caractères minimum, lettres, chiffres, . _ -');
+  if (!/^[a-z0-9._@+-]{3,}$/.test(username)) throw badRequest('Identifiant : 3 caractères minimum, lettres sans accent, chiffres, . _ - @ +');
   checkPassword(b.password);
   const user = await prisma.user.create({
     data: {
