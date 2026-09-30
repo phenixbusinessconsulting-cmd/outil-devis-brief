@@ -1,0 +1,11 @@
+# /etc/systemd/system/outil-devis-backup.timer
+[Unit]
+Description=Sauvegarde quotidienne de l'outil devis
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Connexion — Briefs & devis</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/login.js"></script>
+</head>
+<body>
+  <div class="login-wrap">
+    <form class="card login-card" id="login">
+      <div class="brand">Phenix <span>·</span> Briefs & devis</div>
+      <div class="grid" style="grid-template-columns:1fr">
+        <label class="field">Identifiant
+          <input type="text" name="username" autocomplete="username" autocapitalize="none" required autofocus>
+        </label>
+        <label class="field">Mot de passe
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <p class="alert danger hidden" id="error"></p>
+        <button class="btn primary" type="submit">Se connecter</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

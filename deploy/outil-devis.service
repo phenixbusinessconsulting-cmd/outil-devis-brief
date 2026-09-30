@@ -1,0 +1,27 @@
+# /etc/systemd/system/outil-devis.service
+[Unit]
+Description=Outil briefs SEO et devis (Phenix Group International)
+After=network.target
+
+[Service]
+Type=simple
+User=outil-devis
+Group=outil-devis
+WorkingDirectory=/opt/outil-devis-brief
+EnvironmentFile=/opt/outil-devis-brief/.env
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+
+# Durcissement : le service n'écrit que dans son dossier de données.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/outil-devis
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
