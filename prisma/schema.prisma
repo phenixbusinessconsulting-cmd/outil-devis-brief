@@ -1,0 +1,287 @@
+// Outil de briefs SEO et de devis — Phenix Group International
+// Montants en centimes (entiers). Les totaux ne sont jamais stockés :
+// src/services/pricing.js les recalcule, pour l'écran comme pour les exports.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  ADMIN
+  COMMERCIAL
+}
+
+enum Unit {
+  FORFAIT
+  PAGE
+  MOIS
+  HEURE
+}
+
+enum Category {
+  SITE
+  RESEAUX_AVIS
+  CONTACT_CONVERSION
+  COMMERCE_PAIEMENT
+  CONTENU_CONFIANCE
+  ACQUISITION_MESURE
+  TECHNIQUE_CONFORMITE
+  VISIBILITE_LOCALE
+}
+
+enum VatRegime {
+  TVA_20
+  AUTOLIQUIDATION
+  EXONERATION
+}
+
+enum AnimationLevel {
+  AUCUNE
+  SOBRE
+  MARQUEE
+}
+
+enum RefOrigin {
+  MAISON
+  TIERS
+}
+
+enum DiscountType {
+  AUCUNE
+  POURCENT
+  MONTANT
+}
+
+enum QuoteStatus {
+  BROUILLON
+  EMIS
+  SIGNE
+  REFUSE
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String
+  displayName  String
+  role         Role
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  clients      Client[]
+  quotes       Quote[]
+}
+
+model Session {
+  sid       String   @id
+  data      String
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+// Une seule ligne, id = 1.
+model Settings {
+  id                    Int       @id @default(1)
+  vatRegime             VatRegime @default(TVA_20)
+  exemptionMention      String    @default("TVA non applicable, article 293 B du Code général des impôts")
+  cashDiscountPct       Float     @default(0)
+  depositPct            Float     @default(40)
+  monthlySurcharge12Pct Float     @default(0)
+  monthlySurcharge24Pct Float     @default(0)
+  monthlySurcharge36Pct Float     @default(0)
+  quoteValidityDays     Int       @default(30)
+  providerName          String    @default("Phenix Group International")
+  providerAddress       String    @default("")
+  providerSiret         String    @default("")
+  providerVatNumber     String    @default("")
+  providerEmail         String    @default("")
+  providerPhone         String    @default("")
+  legalMentions         String    @default("")
+  clientRetentionMonths Int       @default(36)
+  updatedAt             DateTime  @updatedAt
+}
+
+model CatalogItem {
+  id            Int            @id @default(autoincrement())
+  code          String         @unique
+  label         String
+  description   String         @default("")
+  basePriceHT   Int            @default(0)
+  unit          Unit           @default(FORFAIT)
+  category      Category
+  active        Boolean        @default(true)
+  position      Int            @default(0)
+  clientModules ClientModule[]
+  quoteLines    QuoteLine[]
+}
+
+model Client {
+  id               Int            @id @default(autoincrement())
+  createdById      Int
+  createdBy        User           @relation(fields: [createdById], references: [id])
+  // Identité
+  raisonSociale    String
+  nomCommercial    String         @default("")
+  secteur          String         @default("")
+  anneeCreation    Int?
+  siret            String         @default("")
+  formeJuridique   String         @default("")
+  assurances       String         @default("")
+  tvaIntracom      String         @default("")
+  // Implantation
+  adresse          String         @default("")
+  codePostal       String         @default("")
+  ville            String         @default("")
+  communes         Json           // [{ nom, importante }]
+  rayonKm          Int?
+  // SEO
+  motClePrincipal  String         @default("")
+  motsClesSecond   Json
+  longueTraine     Json
+  concurrents      Json           // [{ nom, url }]
+  // Preuves
+  nbAvisGoogle     Int?
+  noteGoogle       Float?
+  temoignages      String         @default("")
+  realisations     String         @default("")
+  certifications   String         @default("")
+  // Contact
+  telephone        String         @default("")
+  email            String         @default("")
+  horaires         Json           // { lundi: { ferme, plages } }
+  reseaux          Json           // { instagram, facebook, tiktok, linkedin }
+  lienGbp          String         @default("")
+  // Ton et direction artistique globale
+  tons             Json
+  elementsLangage  String         @default("")
+  couleursImposees Json
+  policesImposees  String         @default("")
+  niveauAnimation  AnimationLevel @default(SOBRE)
+  // RGPD : point de départ de la durée de conservation
+  lastActivityAt   DateTime       @default(now())
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  offerings  ClientOffering[]
+  modules    ClientModule[]
+  references VisualReference[]
+  quotes     Quote[]
+}
+
+model ClientOffering {
+  id          Int    @id @default(autoincrement())
+  clientId    Int
+  client      Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name        String
+  description String @default("")
+  priceMin    Int?
+  priceMax    Int?
+  position    Int    @default(0)
+}
+
+model ClientModule {
+  id            Int         @id @default(autoincrement())
+  clientId      Int
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  catalogItemId Int
+  catalogItem   CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  precision     String      @default("")
+  isOption      Boolean     @default(false)
+
+  @@unique([clientId, catalogItemId])
+}
+
+model VisualReference {
+  id               Int          @id @default(autoincrement())
+  clientId         Int
+  client           Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  url              String
+  origin           RefOrigin    @default(TIERS)
+  elements         Json
+  likes            String       @default("")
+  avoid            String       @default("")
+  inspirationLevel Int          @default(3)
+  position         Int          @default(0)
+  screenshots      Screenshot[]
+}
+
+// Le fichier est sur le disque (UPLOAD_DIR), jamais en base.
+model Screenshot {
+  id           Int             @id @default(autoincrement())
+  referenceId  Int
+  reference    VisualReference @relation(fields: [referenceId], references: [id], onDelete: Cascade)
+  storedName   String          @unique
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  width        Int?
+  height       Int?
+  caption      String          @default("")
+  position     Int             @default(0)
+}
+
+model QuoteSequence {
+  year       Int @id
+  lastNumber Int @default(0)
+}
+
+model Quote {
+  id                    Int         @id @default(autoincrement())
+  number                String?     @unique // attribué à l'émission : D-2026-0007
+  clientId              Int
+  client                Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdById           Int
+  createdBy             User        @relation(fields: [createdById], references: [id])
+  status                QuoteStatus @default(BROUILLON)
+  issuedAt              DateTime?
+  validityDays          Int
+  // Instantané des paramètres, figé à la création puis à l'émission
+  vatRegime             VatRegime
+  clientVatNumber       String      @default("")
+  cashDiscountPct       Float
+  depositPct            Float
+  monthlySurcharge12Pct Float
+  monthlySurcharge24Pct Float
+  monthlySurcharge36Pct Float
+  monthlyDownPayment    Int         @default(0)
+  selectedPayment       String      @default("")
+  exemptionMention      String      @default("")
+  legalMentions         String      @default("")
+  notes                 String      @default("")
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  lines                 QuoteLine[]
+}
+
+model QuoteLine {
+  id            Int          @id @default(autoincrement())
+  quoteId       Int
+  quote         Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  catalogItemId Int?
+  catalogItem   CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  label         String
+  description   String       @default("")
+  unit          Unit
+  unitPriceHT   Int
+  quantity      Float        @default(1)
+  discountType  DiscountType @default(AUCUNE)
+  discountValue Float        @default(0)
+  recurring     Boolean      @default(false)
+  isOption      Boolean      @default(false)
+  position      Int          @default(0)
+}
+
+// Traçabilité, sans donnée personnelle.
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  action    String
+  entity    String?
+  entityId  Int?
+  createdAt DateTime @default(now())
+}

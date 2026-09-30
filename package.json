@@ -1,0 +1,36 @@
+{
+  "name": "outil-devis-brief",
+  "version": "1.0.0",
+  "description": "Briefs SEO et devis pour sites vitrines de commerces de proximité — Phenix Group International",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/*.test.js",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:seed": "node prisma/seed.js",
+    "create-admin": "node scripts/create-admin.js",
+    "postinstall": "prisma generate"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@prisma/adapter-better-sqlite3": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "archiver": "^7.0.1",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
+    "multer": "^2.4.0",
+    "prisma": "7.10.0",
+    "sharp": "^0.35.5"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20.19"
+  }
+}

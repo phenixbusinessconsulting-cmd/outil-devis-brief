@@ -1,0 +1,9 @@
+# /etc/systemd/system/outil-devis-backup.service
+[Unit]
+Description=Sauvegarde de l'outil devis (base + captures)
+
+[Service]
+Type=oneshot
+User=outil-devis
+Group=outil-devis
+ExecStart=/opt/outil-devis-brief/scripts/backup.sh
