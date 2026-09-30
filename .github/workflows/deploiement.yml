@@ -1,0 +1,124 @@
+# Déploiement de l'outil sur le VPS
+#
+# Automatique : tout push sur main (donc toute pull request fusionnée) part
+# en ligne après les tests. Manuel également, depuis l'onglet Actions.
+#
+# Le premier passage installe tout (Node.js, utilisateur, base, service,
+# Nginx, certificat, sauvegardes) ; les suivants mettent à jour le code.
+#
+# Secrets du dépôt (Settings → Secrets and variables → Actions) :
+#   VPS_SSH_KEY            clé privée SSH autorisée en root sur le VPS
+#   VPS_KNOWN_HOSTS        (recommandé) sortie de `ssh-keyscan 72.62.25.236`
+#   OUTIL_ADMIN_USERNAME   (premier passage) identifiant du premier administrateur
+#   OUTIL_ADMIN_PASSWORD   (premier passage) son mot de passe, 10 caractères minimum
+name: Déploiement
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploiement-outil-devis
+  cancel-in-progress: false
+
+env:
+  VPS: root@72.62.25.236
+  DOMAINE: devis-brief.monsitedemo-talens.fr
+  APP_DIR: /opt/outil-devis-brief
+  CERTBOT_EMAIL: phenixbusinessconsulting@gmail.com
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+
+  deployer:
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Préparer la clé SSH
+        env:
+          # Passage par l'environnement, jamais par interpolation directe dans
+          # le script : évite toute injection et toute trace dans les journaux.
+          CLE: ${{ secrets.VPS_SSH_KEY }}
+          HOTES_CONNUS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CLE" ]; then
+            echo "::error::Secret VPS_SSH_KEY absent. Voir DEPLOIEMENT.md, « Déploiement automatique »."
+            exit 1
+          fi
+          HOTE="${VPS#*@}"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$CLE" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          if [ -n "$HOTES_CONNUS" ]; then
+            printf '%s\n' "$HOTES_CONNUS" > ~/.ssh/known_hosts
+          else
+            echo "::warning::VPS_KNOWN_HOSTS absent : l'empreinte du serveur est acceptée sans contrôle."
+            ssh-keyscan -T 10 "$HOTE" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host $HOTE
+            User ${VPS%@*}
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            BatchMode yes
+            ConnectTimeout 15
+            ServerAliveInterval 30
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Vérifier la connexion
+        run: |
+          ssh "$VPS" "hostname && uptime" || {
+            echo "::error::Connexion SSH refusée. La clé doit donner un shell root complet (pas de restriction rrsync)."
+            exit 1
+          }
+
+      - name: Envoyer le code
+        run: |
+          set -euo pipefail
+          ssh "$VPS" "mkdir -p '$APP_DIR' && command -v rsync >/dev/null || (apt-get update -qq && apt-get install -y -qq rsync >/dev/null)"
+          # .env, node_modules et .git restent sur le serveur (exclus, donc
+          # jamais supprimés par --delete). Les données sont hors de APP_DIR.
+          rsync -az --delete \
+            --exclude=.git --exclude=node_modules --exclude=.env --exclude=.local \
+            ./ "$VPS:$APP_DIR/"
+
+      - name: Installer ou mettre à jour
+        env:
+          ADMIN_USERNAME: ${{ secrets.OUTIL_ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.OUTIL_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
+          if ! [[ "$ADMIN_USERNAME" =~ ^[a-z0-9._-]{3,}$ ]]; then
+            echo "::error::OUTIL_ADMIN_USERNAME : 3 caractères minimum, minuscules, chiffres, . _ -"
+            exit 1
+          fi
+          # Le mot de passe passe par l'entrée standard, jamais par la ligne de commande.
+          printf '%s\n' "$ADMIN_PASSWORD" | ssh "$VPS" \
+            "DOMAINE='$DOMAINE' APP_DIR='$APP_DIR' CERTBOT_EMAIL='$CERTBOT_EMAIL' ADMIN_USERNAME='$ADMIN_USERNAME' bash '$APP_DIR/scripts/install-vps.sh'"
+
+      - name: Contrôler le site
+        run: |
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAINE/api/health" || true)"
+          echo "https://$DOMAINE/api/health → $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::Le site ne répond pas en HTTPS ($code). Voir l'étape « Installer ou mettre à jour » (DNS, certbot)."
+            exit 1
+          fi

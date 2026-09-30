@@ -2,11 +2,14 @@
 
 Adresse : **https://devis-brief.monsitedemo-talens.fr**
 
-Procédure pas à pas, à dérouler une fois en `root` sur le VPS (Ubuntu ou
-Debian). Les mises à jour ultérieures se font en quelques commandes (étape 11).
+Deux façons de déployer :
 
-Le code vient de GitHub : le VPS clone le dépôt `outil-devis-brief`. Les
-données (base, captures, sauvegardes) restent sur le VPS, hors du dépôt.
+- **Automatique (recommandé)** : GitHub Actions installe et met à jour tout
+  seul le VPS à chaque fusion sur `main`. Voir la section suivante.
+- **Manuelle** : la procédure pas à pas plus bas (étapes 1 à 11). Elle
+  décrit aussi ce que fait l'automatique.
+
+Les données (base, captures, sauvegardes) restent sur le VPS, hors du dépôt.
 
 | Élément | Emplacement |
 |---|---|
@@ -16,6 +19,53 @@ données (base, captures, sauvegardes) restent sur le VPS, hors du dépôt.
 | Captures d'écran | `/var/lib/outil-devis/uploads/` (jamais servies directement par Nginx) |
 | Sauvegardes | `/var/backups/outil-devis/` (30 jours) |
 | Port interne | `127.0.0.1:3100` |
+
+---
+
+## Déploiement automatique (GitHub Actions)
+
+Le workflow `.github/workflows/deploiement.yml` lance les tests, envoie le
+code sur le VPS, puis exécute `scripts/install-vps.sh`. Ce script installe ce
+qui manque (Node.js, Nginx, certbot), crée l'utilisateur et les dossiers, le
+`.env` avec un secret aléatoire, la base, le catalogue, le premier
+administrateur, le service, Nginx, le certificat HTTPS et les sauvegardes.
+Il est relançable : aux passages suivants, il ne fait que mettre à jour.
+
+### Mise en place, une seule fois
+
+1. **DNS** : l'enregistrement A `devis-brief` doit pointer vers le VPS
+   (voir l'étape 1 ci-dessous).
+2. **Secrets du dépôt** : sur GitHub, dépôt `outil-devis-brief` →
+   **Settings → Secrets and variables → Actions → New repository secret**.
+
+   | Nom | Contenu |
+   |---|---|
+   | `VPS_SSH_KEY` | la clé **privée** SSH du CI, la même que pour le CRM : contenu de `~/.ssh/id_ed25519_ci` sur le Mac |
+   | `VPS_KNOWN_HOSTS` | *(recommandé)* la sortie de `ssh-keyscan 72.62.25.236` |
+   | `OUTIL_ADMIN_USERNAME` | identifiant du premier administrateur, par exemple `prenom.nom` |
+   | `OUTIL_ADMIN_PASSWORD` | son mot de passe, 10 caractères minimum |
+
+   Depuis le Mac, pour copier les valeurs :
+
+   ```bash
+   pbcopy < ~/.ssh/id_ed25519_ci      # clé privée → presse-papier
+   ssh-keyscan 72.62.25.236 | pbcopy  # empreinte du serveur
+   ```
+
+   La clé privée se colle **uniquement dans l'interface GitHub**, jamais
+   dans une conversation ni dans un fichier.
+
+   La clé doit donner un shell root complet. Si elle a été bridée au seul
+   dossier du CRM (préfixe `command="rrsync …"` dans `authorized_keys`), le
+   déploiement échoue à l'étape « Vérifier la connexion ». Dans ce cas,
+   autorisez une clé dédiée à cet outil.
+3. **Lancer** : GitHub → onglet **Actions → Déploiement → Run workflow**,
+   ou simplement fusionner une pull request sur `main`.
+
+Le premier passage prend quelques minutes. Il se termine en vert quand
+`https://devis-brief.monsitedemo-talens.fr/api/health` répond. Les secrets
+`OUTIL_ADMIN_*` ne servent qu'à ce premier passage : ils sont ignorés dès
+qu'un administrateur existe, et peuvent alors être supprimés.
 
 ---
 
