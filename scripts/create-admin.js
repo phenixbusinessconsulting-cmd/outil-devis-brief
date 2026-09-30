@@ -38,9 +38,9 @@ function ask(question) {
   });
 }
 
-const username = (values.username || (await ask('Identifiant : '))).toLowerCase();
-if (!/^[a-z0-9._-]{3,}$/.test(username)) {
-  console.error('✗ Identifiant : 3 caractères minimum, lettres, chiffres, . _ -');
+const username = (values.username || (await ask('Identifiant : '))).trim().toLowerCase();
+if (!/^[a-z0-9._@+-]{3,}$/.test(username)) {
+  console.error('✗ Identifiant : 3 caractères minimum, lettres sans accent, chiffres, . _ - @ +');
   process.exit(1);
 }
 if (await prisma.user.findUnique({ where: { username } })) {
