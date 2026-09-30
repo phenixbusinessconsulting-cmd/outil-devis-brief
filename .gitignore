@@ -1,0 +1,15 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Dépendances et données locales
+node_modules/
+.local/
+uploads/
+*.db
+*.db-journal
+
+# Divers
+.DS_Store
+*.log
